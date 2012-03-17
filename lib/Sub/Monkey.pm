@@ -1,9 +1,10 @@
 package Sub::Monkey;
 
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 $Sub::Monkey::Subs     = {};
 $Sub::Monkey::CanPatch = [];
 $Sub::Monkey::Classes  = [];
+$Sub::Monkey::Iter     = 0;
 
 =head1 NAME
 
@@ -53,6 +54,7 @@ sub import {
             after
             around
             unpatch
+            instance
         /
     );
 }
@@ -120,6 +122,40 @@ sub getscope {
     return $pkg;
 }
 # modifiers
+
+=head2 instance
+
+Patch an instance method instead of an entire class
+
+    # Pig.pm
+    package Pig;
+    sub new { return bless {}, shift; }
+    sub says { print "Oink!\n"; }
+
+    # test.pl
+    package main;
+    use Sub::Monkey qw<Pig>;
+
+    my $pig  = Pig->new;
+    my $pig2 = Pig->new;
+    instance 'says' => sub {
+        print "Meow\n";
+    },
+    $pig2;
+
+    # only C<$pig2> will have its says method overridden
+
+=cut
+
+sub instance {
+    my($method, $code, $instance) = @_;
+    $Sub::Monkey::Iter++;
+    my $package = ref($instance) . '::Sub::Monkey' . $Sub::Monkey::Iter;
+    no strict 'refs';
+    @{$package . '::ISA'} = (ref($instance));
+    *{$package . '::' . $method} = $code;
+    bless $_[2], $package;
+}
 
 =head2 override 
 

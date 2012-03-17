@@ -1,55 +1,151 @@
-Sub-Monkey
+NAME
+    Sub::Monkey - Dynamically and neatly monkey patch a module
 
-The README is used to introduce the module and provide instructions on
-how to install the module, any machine dependencies it may have (for
-example C compilers and installed libraries) and any other information
-that should be provided before the module is installed.
+DESCRIPTION
+    In some cases, rare cases, you may need to temporarily patch a module
+    on-the-go. Sub::Monkey can help you achieve this by providing a set of
+    methods to create, override and add hook modifiers, similar to Moose,
+    but can apply them to remote modules (Not the current one). This type of
+    monkey patching is reasonably safe because you can plainly see what
+    changes are being made to what modules. Obviously monkey patching isn't
+    always the best alternative, but sometimes you may have no other choice.
+    Sub::Monkey also provides the ability to undo any patching you made with
+    "unpatch".
 
-A README file is required for CPAN modules since CPAN extracts the README
-file from a module distribution so that people browsing the archive
-can use it to get an idea of the module's uses. It is usually a good idea
-to provide version information here so that people can decide whether
-fixes for the module are worth downloading.
+SYNOPSIS
+        use Sub::Monkey qw<Some::Package>;
 
+        method 'needThisMethod' => sub {
+            ...
+        },
+        qw<Some::Package>;
 
-INSTALLATION
+    We just created a brand new method in the Some::Package class. If you
+    attempt to override an existing method using "method", then Sub::Monkey
+    will raise an error, because really you should be using "override"
+    instead. Remember, to patch a module with Sub::Monkey, you need to
+    explicitly tell it you want to modify a class by importing it when you
+    "use Sub::Monkey". To do this for multiple modules just add them all
+    into an array.
 
-To install this module, run the following commands:
+        use Sub::Monkey qw<Some::Package Foo::Bar Another::One>;
 
-	perl Makefile.PL
-	make
-	make test
-	make install
+METHODS
+  instance
+    Patch an instance method instead of an entire class
 
-SUPPORT AND DOCUMENTATION
+        # Pig.pm
+        package Pig;
+        sub new { return bless {}, shift; }
+        sub says { print "Oink!\n"; }
 
-After installing, you can find documentation for this module with the
-perldoc command.
+        # test.pl
+        package main;
+        use Sub::Monkey qw<Pig>;
 
-    perldoc Sub::Monkey
+        my $pig  = Pig->new;
+        my $pig2 = Pig->new;
+        instance 'says' => sub {
+            print "Meow\n";
+        },
+        $pig2;
 
-You can also look for information at:
+        # only C<$pig2> will have its says method overridden
 
-    RT, CPAN's request tracker (report bugs here)
-        http://rt.cpan.org/NoAuth/Bugs.html?Dist=Sub-Monkey
+  override
+    Overrides an already existing method. If the target method doesn't exist
+    then Sub::Monkey will throw an error.
 
-    AnnoCPAN, Annotated CPAN documentation
-        http://annocpan.org/dist/Sub-Monkey
+        override 'foo' => sub {
+            return "foo bar";
+        },
+        qw<Some::Module>;
 
-    CPAN Ratings
-        http://cpanratings.perl.org/d/Sub-Monkey
+  method
+    Creates a brand new method in the target module. It will NOT allow you
+    to override an existing one using this, and will throw an error.
 
-    Search CPAN
-        http://search.cpan.org/dist/Sub-Monkey/
+        method 'active_customers' => sub {
+            my $self = shift;
+            return $self->search({ status => 'active' });
+        },
+        qw<Schema::ResultSet::Customer>;
 
+  before
+    Simply adds code to the target method before the original code is ran
 
-LICENSE AND COPYRIGHT
+        # Foo.pm
+        package Foo;
+    
+        sub new { return bless {}, __PACKAGE__; }
+        sub hello { print "Hello, $self->{name}; }
+        1;
 
-Copyright (C) 2012 Brad Haywood
+        # test.pl
+        use Sub::Monkey qw<Foo>;
+   
+        my $foo = Foo->new; 
+        before 'hello' => {
+            my $self = shift;
+            $self->{name} = 'World';
+        },
+        qw<Foo>;
 
-This program is free software; you can redistribute it and/or modify it
-under the terms of either: the GNU General Public License as published
-by the Free Software Foundation; or the Artistic License.
+        print $foo->hello . "\n";
 
-See http://dev.perl.org/licenses/ for more information.
+  after
+    Basically the same as "before", but appends the code specified to the
+    END of the original
+
+  around
+    Around gives the user a bit more control over the subroutine. When you
+    create an around method the first argument will be the original method,
+    the second is $self and the third is any arguments passed to the
+    original subroutine. In a away this allows you to control the flow of
+    the entire subroutine.
+
+        package MyFoo;
+
+        sub greet {
+            my ($self, $name) = @_;
+
+            print "Hello, $name!\n";
+        }
+
+        1;
+
+        # test.pl
+
+        use Sub::Monkey qw<MyFoo>;
+
+        # only call greet if any arguments were passed to MyFoo->greet()
+        around 'greet' => sub {
+            my $method = shift;
+            my $self = shift;
+
+            $self->$method(@_)
+                if @_;
+        },
+        qw<MyFoo>;
+
+  unpatch
+    Undoes any modifications made to patched methods, restoring it to its
+    original state.
+
+        override 'this' => sub { print "Blah\n"; }, qw<FooClass>;
+  
+        unpatch 'this' => 'FooClass';
+
+AUTHOR
+    Brad Haywood <brad@geeksware.net>
+
+LICENSE
+    You may distribute this code under the same terms as Perl itself.
+
+POD ERRORS
+    Hey! The above document had some coding errors, which are explained
+    below:
+
+    Around line 15:
+        Deleting unknown formatting code M<>
 
