@@ -50,7 +50,25 @@ METHODS
         },
         $pig2;
 
-        # only C<$pig2> will have its says method overridden
+        # only $pig2 will have its says method overridden
+
+  original
+    If you want to run the original version of a patched method, but not
+    unpatch it right away you can use "original" to do so. It will run the
+    old method before it was patched with any arguments you specify, but the
+    actual method will still remain patched.
+
+        after 'someMethod' => sub {
+            print "Blah\n"
+        },
+        qw<Foo>;
+
+        original('Foo', 'someMethod', qw<these are my args>);
+
+    OR if you prefer, you can just call
+    Sub::Monkey::PatchedClassName::method->(@args)
+
+        Sub::Monkey::Foo->someMethod('these', 'are', 'my', 'args);
 
   override
     Overrides an already existing method. If the target method doesn't exist

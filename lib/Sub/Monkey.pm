@@ -1,6 +1,9 @@
 package Sub::Monkey;
 
-our $VERSION = '0.002';
+use strict;
+use warnings;
+
+our $VERSION = '0.003';
 $Sub::Monkey::Subs     = {};
 $Sub::Monkey::CanPatch = [];
 $Sub::Monkey::Classes  = [];
@@ -55,6 +58,7 @@ sub import {
             around
             unpatch
             instance
+            original
         /
     );
 }
@@ -82,6 +86,7 @@ sub _extend_class {
 
 sub _import_def {
     my ($pkg, $from, @subs) = @_;
+    no strict 'refs';
     if ($from) {
         for (@subs) {
             *{$pkg . "::$_"} = \&{"$from\::$_"};
@@ -113,6 +118,8 @@ sub _add_to_subs {
     if (! exists $Sub::Monkey::Subs->{$sub}) {
         $Sub::Monkey::Subs->{$sub} = {};
         $Sub::Monkey::Subs->{$sub} = \&{$sub};
+        no strict 'refs';
+        *{__PACKAGE__ . "::$sub"} = \&{$sub};
     }
 }
 
@@ -143,7 +150,7 @@ Patch an instance method instead of an entire class
     },
     $pig2;
 
-    # only C<$pig2> will have its says method overridden
+    # only $pig2 will have its says method overridden
 
 =cut
 
@@ -155,6 +162,35 @@ sub instance {
     @{$package . '::ISA'} = (ref($instance));
     *{$package . '::' . $method} = $code;
     bless $_[2], $package;
+}
+
+=head2 original
+
+If you want to run the original version of a patched method, but not unpatch it right away 
+you can use C<original> to do so. It will run the old method before it was patched with any arguments you specify, but the actual method will still remain patched.
+
+    after 'someMethod' => sub {
+        print "Blah\n"
+    },
+    qw<Foo>;
+
+    original('Foo', 'someMethod', qw<these are my args>);
+
+OR if you prefer, you can just call C<Sub::Monkey::PatchedClassName::method->(@args)>
+
+    Sub::Monkey::Foo->someMethod('these', 'are', 'my', 'args);
+
+=cut
+
+sub original {
+    my ($class, $method, @args) = @_;
+    if (exists $Sub::Monkey::Subs->{"$class\::$method"}) {
+        $Sub::Monkey::Subs->{"$class\::$method"}->(@args);
+    }
+    else {
+        warn "Could not run original method '$method' in class $class. Not found";
+        return 0;
+    }
 }
 
 =head2 override 
@@ -180,6 +216,7 @@ sub override {
         if ! $class->can($method);
 
     _add_to_subs("$class\::$method");
+    no strict 'refs';
     *$method = sub { $code->(@_) };
     *{$class . "::$method"} = \*$method;
 }
@@ -207,6 +244,7 @@ sub method {
         if $class->can($method);
 
     _add_to_subs("$class\::$method");
+    no strict 'refs';
     *$method = sub { $code->(@_); };
 
     *{$class . "::$method"} = \*$method;
@@ -241,6 +279,7 @@ sub before {
     my ($method, $code, $class) = @_;
     
     _check_init($class);
+    my $full;
     if (ref($method) eq 'ARRAY') {
         for my $subname (@$method) {
             $full = "$class\::$subname";
@@ -251,6 +290,7 @@ sub before {
                 if ! $class->can($subname);
 
             $old_code = \&{$full};
+            no strict 'refs';
             *$subname = sub {
                 $code->(@_);
                 $old_code->(@_);
@@ -269,6 +309,7 @@ sub before {
             if ! $class->can($method);
 
         $old_code = \&{$full};
+        no strict 'refs';
         *$method = sub {
             $code->(@_);
             $old_code->(@_);
@@ -289,7 +330,7 @@ sub after {
     my ($method, $code, $class) = @_;
 
     _check_init($class);
-    $full = "$class\::$method";
+    my $full = "$class\::$method";
     my $alter_sub;
     my $new_code;
     my $old_code;
@@ -297,6 +338,7 @@ sub after {
         if ! $class->can($method);
 
     $old_code = \&{$full};
+    no strict 'refs';
     *$method = sub {
         $old_code->(@_);
         $code->(@_);
@@ -339,11 +381,12 @@ Around gives the user a bit more control over the subroutine. When you create an
 sub around {
     my ($method, $code, $class) = @_;
 
-    $full = "$class\::$method";
+    my $full = "$class\::$method";
     die "Could not find $method in the hierarchy for $class\n"
         if ! $class->can($method);
 
     my $old_code = \&{$full};
+    no strict 'refs';
     *$method = sub {
         $code->($old_code, @_);
     };
@@ -372,6 +415,7 @@ sub unpatch {
         return 0;
     }
 
+    no strict 'refs';
     *{$sub} = $Sub::Monkey::Subs->{$sub};
 }
 
