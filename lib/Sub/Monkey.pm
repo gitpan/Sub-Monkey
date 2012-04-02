@@ -3,7 +3,7 @@ package Sub::Monkey;
 use strict;
 use warnings;
 
-our $VERSION = '0.003';
+our $VERSION = '0.004';
 $Sub::Monkey::Subs     = {};
 $Sub::Monkey::CanPatch = [];
 $Sub::Monkey::Classes  = [];
@@ -12,6 +12,11 @@ $Sub::Monkey::Iter     = 0;
 =head1 NAME
 
 Sub::Monkey - Dynamically and neatly monkey patch a module
+
+=head1 DEPRECATED
+
+Please note this module will not be maintained anymore. Instead, please check out C<Class::Monkey>. It's the same project with updated pod and newed methods. Not to mention a namespace that makes a bit more sense..
+Code you've made with Sub::Monkey will not break, just change the file where it's used as such: C<s/Sub::Monkey/Class::Monkey/g> and you're sorted.
 
 =head1 DESCRIPTION
 
